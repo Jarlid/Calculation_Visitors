@@ -1,10 +1,5 @@
 interface Node{
-    fun accept(visitor: PrintVisitor): String
-    fun accept(visitor: CalculateVisitor): Int
-    fun accept(visitor: ExpandVisitor): Node?
-    fun accept(visitor: ExpandVisitorStart): Node? {
-        return visitor.expandVisitStart(this)
-    }
+    fun <R> accept(visitor: Visitor<R>): R
     val type: Int // 0 for numbers, 1 for composition, 2 for multiplication
     val firstOperand: Node?
     val secondOperand: Node?
@@ -14,14 +9,8 @@ class Number(val value: Int) : Node{
     override val type = 0
     override val firstOperand: Node? = null
     override val secondOperand: Node? = null
-    override fun accept(visitor: PrintVisitor): String {
-        return visitor.printVisit(this)
-    }
-    override fun accept(visitor: CalculateVisitor): Int {
-        return visitor.calculateVisit(this)
-    }
-    override fun accept(visitor: ExpandVisitor): Node? {
-        return visitor.expandVisit(this)
+    override fun <R> accept(visitor: Visitor<R>): R {
+        return visitor.visit(this)
     }
 }
 
@@ -29,14 +18,8 @@ class Composition(firstOperand: Node, secondOperand: Node) : Node{
     override val type = 1
     override val firstOperand: Node? = firstOperand
     override val secondOperand: Node? = secondOperand
-    override fun accept(visitor: PrintVisitor): String {
-        return visitor.printVisit(this)
-    }
-    override fun accept(visitor: CalculateVisitor): Int {
-        return visitor.calculateVisit(this)
-    }
-    override fun accept(visitor: ExpandVisitor): Node? {
-        return visitor.expandVisit(this)
+    override fun <R> accept(visitor: Visitor<R>): R {
+        return visitor.visit(this)
     }
 }
 
@@ -44,76 +27,61 @@ class Multiplication(firstOperand: Node, secondOperand: Node) : Node{
     override val type = 2
     override val firstOperand: Node? = firstOperand
     override val secondOperand: Node? = secondOperand
-    override fun accept(visitor: PrintVisitor): String {
-        return visitor.printVisit(this)
-    }
-    override fun accept(visitor: CalculateVisitor): Int {
-        return visitor.calculateVisit(this)
-    }
-    override fun accept(visitor: ExpandVisitor): Node? {
-        return visitor.expandVisit(this)
+    override fun <R> accept(visitor: Visitor<R>): R {
+        return visitor.visit(this)
     }
 }
 
-interface Visitor {
-    fun printVisit(node : Number): String {
-        return ""
-    }
-    fun printVisit(node : Composition): String {
-        return ""
-    }
-    fun printVisit(node : Multiplication): String {
-        return ""
-    }
-    fun calculateVisit(node : Number): Int {
-        return 0
-    }
-    fun calculateVisit(node : Composition): Int {
-        return 0
-    }
-    fun calculateVisit(node : Multiplication): Int {
-        return 0
-    }
-    fun expandVisitStart(node : Node): Node? {
-        return null
-    }
-    fun expandVisit(node : Number): Node? {
-        return null
-    }
-    fun expandVisit(node : Composition): Node? {
-        return null
-    }
-    fun expandVisit(node : Multiplication): Node? {
-        return null
-    }
+interface Visitor <R> {
+    fun visit(node : Number): R
+    fun visit(node : Composition): R
+    fun visit(node : Multiplication): R
 }
 
-class PrintVisitor: Visitor {
-    override fun printVisit(node : Number): String {
+class PrintVisitor: Visitor <String> {
+    override fun visit(node : Number): String {
         return node.value.toString()
     }
-    override fun printVisit(node : Composition): String {
+    override fun visit(node : Composition): String {
         return "(" + node.firstOperand!!.accept(this) + "+" + node.secondOperand!!.accept(this) + ")"
     }
-    override fun printVisit(node : Multiplication): String {
+    override fun visit(node : Multiplication): String {
         return node.firstOperand!!.accept(this) + "*" + node.secondOperand!!.accept(this)
     }
 }
 
-class CalculateVisitor: Visitor {
-    override fun calculateVisit(node : Number): Int {
+class CalculateVisitor: Visitor <Int> {
+    override fun visit(node : Number): Int {
         return node.value
     }
-    override fun calculateVisit(node : Composition): Int {
+    override fun visit(node : Composition): Int {
         return node.firstOperand!!.accept(this) + node.secondOperand!!.accept(this)
     }
-    override fun calculateVisit(node : Multiplication): Int {
+    override fun visit(node : Multiplication): Int {
         return node.firstOperand!!.accept(this) * node.secondOperand!!.accept(this)
     }
 }
 
-class ExpandVisitorStart: Visitor {
-    override fun expandVisitStart(node: Node): Node? {
+class ExpandVisitorStart: Visitor <Node?> {
+    override fun visit(node: Number): Node? {
+        var temp: Node? = node
+        var toReturn: Node? = node
+        while (temp != null) {
+            toReturn = temp
+            temp = temp.accept(ExpandVisitor())
+        }
+        return toReturn
+    }
+    override fun visit(node: Composition): Node? {
+        var temp: Node? = node
+        var toReturn: Node? = node
+        while (temp != null) {
+            toReturn = temp
+            temp = temp.accept(ExpandVisitor())
+        }
+        return toReturn
+    }
+    override fun visit(node: Multiplication): Node? {
         var temp: Node? = node
         var toReturn: Node? = node
         while (temp != null) {
@@ -124,11 +92,11 @@ class ExpandVisitorStart: Visitor {
     }
 }
 
-class ExpandVisitor: Visitor {
-    override fun expandVisit(node : Number): Node? {
+class ExpandVisitor: Visitor <Node?>{
+    override fun visit(node : Number): Node? {
         return null
     }
-    override fun expandVisit(node : Composition): Node? {
+    override fun visit(node : Composition): Node? {
         val temp1 = node.firstOperand!!.accept(ExpandVisitor())
         val temp2 = node.secondOperand!!.accept(ExpandVisitor())
         if (temp1 == null && temp2 == null)
@@ -139,7 +107,7 @@ class ExpandVisitor: Visitor {
             return Composition(temp1, node.secondOperand)
         return Composition(temp1, temp2)
     }
-    override fun expandVisit(node : Multiplication): Node? {
+    override fun visit(node : Multiplication): Node? {
         var temp1 = node.firstOperand
         var temp2 = node.secondOperand
         if (temp1!!.type == 1) {
